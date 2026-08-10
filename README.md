@@ -27,7 +27,7 @@ The installer handles these for you.
 ## Install
 
 ```bash
-git clone https://github.com/<your-username>/burn-suite.git
+git clone https://github.com/GhostOfHarambe/burn-suite.git
 cd burn-suite
 sudo ./install.sh
 ```

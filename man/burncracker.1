@@ -1,0 +1,288 @@
+.TH BURNCRACKER 1 "2026-08-09" "Burn Suite 1.0" "Burn Suite Manual"
+.SH NAME
+burncracker \- automated WiFi handshake capture and password cracker
+.SH SYNOPSIS
+.B sudo python3 ./burncracker.py
+.br
+.B sudo burncracker
+.RI ( "if installed via " install.sh )
+.br
+.B python3 ./burncracker.py --check
+.RI ( "dependency preflight only; does not require root" )
+.SH DESCRIPTION
+.B burncracker
+puts a wireless interface into monitor mode, scans for nearby WPA/WPA2
+networks, captures a 4\-way handshake from a chosen target (optionally
+forcing one via deauthentication), and attempts to crack the resulting
+passphrase against a wordlist using either aircrack\-ng (CPU) or
+hashcat (GPU, optionally with mutation rules).
+.PP
+Must be run as root. Requires a physical wireless adapter with monitor
+mode support \- it will not work inside most VMs unless a USB WiFi
+adapter is passed through directly to the guest.
+.SH REQUIREMENTS
+.TP
+.B aircrack\-ng suite
+airodump\-ng, aireplay\-ng, aircrack\-ng \- all required.
+.RB ( airmon\-ng
+is not used \- see
+.B ADAPTER SELECTION
+below.)
+.TP
+.B iw
+Required \- used to enumerate wireless interfaces and switch the
+selected one into/out of monitor mode.
+.TP
+.B NetworkManager / nmcli
+Optional. If present, used to cleanly release just the selected
+interface from NetworkManager's control (and hand it back afterward)
+without touching any other interface. If absent, this step is skipped
+gracefully \- there's nothing to isolate from.
+.TP
+.B hashcat
+Optional, for GPU\-accelerated cracking (methods 2 and 3). Falls back
+to aircrack\-ng automatically if not found.
+.TP
+.B hcxtools
+Optional, for converting captures to hashcat's format.
+.TP
+.B OUI database
+Optional. If an OUI/MAC\-prefix database is present \-
+.I /usr/share/nmap/nmap\-mac\-prefixes
+(from
+.BR nmap )
+or
+.I /usr/share/ieee\-data/oui.txt
+(from
+.BR ieee\-data )
+\- the connected\-device list shows each client's hardware vendor to help
+you pick a target. If absent, clients are still listed but without a
+vendor name. No network lookups are ever performed.
+.SH OPTIONS
+.TP
+.B \-\-check
+Run the dependency preflight and exit. Reports each required tool
+.RB ( airodump\-ng ", " aireplay\-ng ", " aircrack\-ng ", " iw )
+and optional one
+.RB ( hashcat ", " hcxtools ", " hcxdumptool ", " "OUI database" )
+as present or missing, then exits 0 if all required tools are present
+or 2 if any are missing (logged as \fBCRACK\-104\fR). Does not require
+root and performs no scanning \- useful for verifying a machine is
+ready before an engagement.
+.SH USAGE
+.TP
+.B 0.
+On every normal run the same preflight runs first; a missing required
+tool aborts before any prompts (exit 2).
+.TP
+.B 1.
+The tool checks for a VM (warns and asks to confirm before continuing
+if detected). The wordlist is
+.B not
+chosen here \- you pick it later, at crack time (step 7), so you're
+never prompted for one unless a handshake is actually captured. See
+.B WORDLISTS
+below.
+.TP
+.B 2.
+Every wireless interface on the system is listed (via
+.BR "iw dev" ),
+each with a best\-effort driver\-name hint, and you pick which one to
+dedicate to this run \- e.g. a USB adapter, so your main connection is
+left completely alone. See
+.B ADAPTER SELECTION
+below.
+.TP
+.B 3.
+Monitor mode starts automatically on the
+.B selected
+interface only.
+.TP
+.B 4.
+It scans all channels for \fBSCAN_SECONDS\fR (default 20s) and lists
+nearby networks with SSID, BSSID, channel, encryption, and a
+best\-effort device hint. Because the scan hops channels quickly it
+rarely catches client frames, so the DEVICES column shows a dash
+(\(dq\(em\(dq) when none were seen \- this means \(dqnone seen in the
+quick scan\(dq, not \(dqconfirmed empty\(dq. Exact clients are counted
+in step 6 once a target is chosen and the card dwells on its channel.
+.TP
+.B 5.
+Select a target network. The tool classifies its security and only
+proceeds when there is actually something to attack (see
+.B WPA3 AND WHAT IS ATTACKABLE
+below): open (OPN), WPA/WPA2-Enterprise, and WPA3-only (SAE) targets
+are declined with an explanation; WPA/WPA2-PSK and WPA3 transition
+mode proceed.
+.TP
+.B 6.
+Choose a capture method. If
+.B hcxdumptool
+is installed you are offered
+.B PMKID
+(clientless \- request the PMKID straight from the AP, no client and
+no deauth, so it's quiet) or
+.B handshake
+(below); otherwise it goes straight to the handshake method. For the
+handshake method, connected clients are listed, each annotated with
+its hardware vendor (via OUI lookup) so you can pick a specific device
+\- a randomized MAC is flagged as a likely phone, while a named vendor
+(e.g. an IoT maker) is usually the least\-noticed thing to knock off.
+Choose whether to deauth a single device, deauth all devices (requires
+typing \fBCONFIRM\fR \- this disconnects everyone on the network), or
+wait passively. A single\-device deauth is sent as
+.B targeted (unicast)
+frames to that client only \- no broadcast frames \- to stay as covert
+as possible. If no devices are seen, you can wait indefinitely, pick a
+different target, or capture passively anyway.
+.TP
+.B 7.
+Once a handshake is captured, choose a cracking method:
+.RS
+.IP 1. 3
+Aircrack\-ng (CPU) \- slowest, works everywhere.
+.IP 2. 3
+Hashcat (GPU) \- much faster, requires a compatible GPU.
+.IP 3. 3
+Hashcat + rules (GPU) \- mutates the wordlist for broader coverage.
+.RE
+.IP
+After the method is chosen you are prompted for the wordlist \- one of
+the installed lists under \fI/usr/share/wordlists\fR (shown with sizes,
+rockyou.txt offered as the default) or a custom path you type in.
+Gzipped lists are decompressed automatically. All three methods run a
+dictionary attack, so this prompt applies to hashcat as well as
+aircrack.
+.IP
+The cracker's live output is streamed to the terminal as it runs, with
+a periodic elapsed\-time heartbeat during quiet stretches, so a long
+run shows continuous progress instead of a blank screen. Interrupting
+with Ctrl+C stops the cracker cleanly rather than leaving it running in
+the background.
+.TP
+.B 8.
+Results are written to \fIburn_report/burncracker_<timestamp>.txt\fR
+and the selected interface is restored to normal (managed) mode \-
+even if something fails partway through, a crash cannot leave the
+adapter stuck in monitor mode, and every other interface was never
+touched in the first place.
+.SH ADAPTER SELECTION
+No interface is hardcoded. Each run,
+.B burncracker.py
+lists every wireless interface found via
+.B "iw dev"
+and lets you pick one \- ideal for dedicating a secondary USB adapter
+(e.g. an Alfa AWUS036ACH or AWUS036ACM) to this tool's work while your
+main/built\-in card stays connected to whatever network you're already
+on. Only the interface you pick is ever released from NetworkManager
+or switched into monitor mode \- every other interface, including
+whatever's keeping you online, is left completely alone.
+.PP
+This replaces the old
+.B airmon\-ng
+based approach, which killed NetworkManager and wpa_supplicant
+system\-wide and would disconnect every wireless connection on the
+machine, not just the target adapter.
+.SH WORDLISTS
+You pick the wordlist interactively at crack time \- after a handshake
+is captured and a method is chosen (step 7), not at startup. The tool
+scans
+.B WORDLIST_DIR
+(default \fI/usr/share/wordlists\fR) for \fI.txt\fR/\fI.lst\fR files
+(including \fI.gz\fR variants), lists them with their sizes, offers
+.B WORDLIST
+(default \fI/usr/share/wordlists/rockyou.txt\fR) as the recommended
+first pass, and also accepts a custom path you type in \- so a larger
+list (e.g. SecLists, CrackStation) needs no code change. A chosen
+gzipped list is decompressed automatically (the original \fI.gz\fR is
+kept).
+.SH WPA3 AND WHAT IS ATTACKABLE
+The capture\-and\-crack model this tool uses is an
+.B offline dictionary attack:
+capture a WPA2\-PSK 4\-way handshake (or a PMKID), then try passphrases
+against it offline at GPU speed. That works because the handshake
+yields a verifier you can test guesses against.
+.PP
+.B WPA3\-Personal replaces PSK authentication with SAE
+(Simultaneous Authentication of Equals), a password\-authenticated key
+exchange
+.B designed specifically to defeat offline dictionary attacks.
+Capturing a SAE handshake does not give you anything to test passwords
+against offline \- there is no hashcat mode for it \- so a WPA3\-only
+network is
+.B not crackable this way regardless of hardware
+(a laptop, a GPU farm, and a datacenter are equally stuck). The tool
+detects this and declines with \fBCRACK\-403\fR rather than wasting
+your time. AES/CCMP is only the cipher; SAE is the barrier.
+.PP
+The practical exception is
+.B WPA3 transition mode
+\- a mixed network that offers both WPA2 and WPA3 for compatibility. A
+client that connects over WPA2/PSK still produces a crackable
+handshake, so those targets proceed via the WPA2 path.
+WPA/WPA2\-Enterprise (802.1X/EAP) has no pre\-shared key to attack and
+is declined with \fBCRACK\-404\fR.
+.SH CONFIGURATION
+Edit the constants near the top of \fBburncracker.py\fR:
+.TP
+.B WORDLIST
+Path offered as the default/recommended wordlist. Default
+\fI/usr/share/wordlists/rockyou.txt\fR.
+.TP
+.B WORDLIST_DIR
+Directory scanned for installed wordlists to offer in the menu.
+Default \fI/usr/share/wordlists\fR.
+.TP
+.B SCAN_SECONDS
+How long to scan for networks before showing the list. Default 20.
+.PP
+The wireless adapter itself is not a config constant \- it's chosen
+interactively each run (see
+.B ADAPTER SELECTION
+above).
+.SH EXIT STATUS
+.TP
+.B 0
+Completed normally (cracked or not \- check the report's STATUS field).
+.TP
+.B 1
+User cancelled (declined VM warning, network is open, etc).
+.TP
+.B 2
+Environment/dependency problem (not root, wordlist unresolvable, no
+wireless interface found, monitor mode failed to start).
+.TP
+.B 3
+No usable data produced (no networks found, no handshake captured).
+.SH DIAGNOSTICS
+Every failure, skip, or empty result is logged to the console and to
+the report's DIAGNOSTICS section as a \fBCRACK\-NNN\fR code. See
+.I ERROR_CODES.txt
+in the suite root for the full reference. Notably: a cracking attempt
+that times out or fails to complete is
+.B never
+reported as "password not found" \- those are logged as distinct,
+inconclusive codes so a real wordlist\-exhaustion result can't be
+confused with an incomplete one.
+.SH FILES
+.TP
+.I burn_report/burncracker_YYYYMMDD_HHMMSS.txt
+Generated report for each run.
+.TP
+.I /tmp/burncracker/
+Scratch directory for scan/capture files.
+.SH SECURITY CONSIDERATIONS
+.B FOR AUTHORIZED TESTING ONLY.
+Only attack networks you own or have explicit written permission to
+test. Broadcast deauthentication disconnects every device on the
+network and requires a separate typed confirmation for that reason.
+Unauthorized use is a federal crime under the CFAA and equivalent laws
+worldwide.
+.SH SEE ALSO
+.BR burnscanner (1),
+.BR burnrecon (1),
+.BR burnweb (1),
+.BR burnreport (1),
+.BR burnsuite (7),
+.BR aircrack\-ng (1),
+.BR hashcat (1)

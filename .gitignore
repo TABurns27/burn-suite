@@ -1,0 +1,22 @@
+# Secrets — never ship a personal API key
+shodan_api.txt
+hunter_api.txt
+hibp_api.txt
+
+# Generated scan reports (may contain target data)
+burn_report/
+
+# Python
+__pycache__/
+*.pyc
+
+# Packaged bundles produced by package.sh (built on demand, not source)
+burnsuite_*.tar.gz
+
+# Local tooling / editor / OS cruft — not part of the suite
+.claude/
+System Volume Information/
+.vscode/
+.idea/
+*.swp
+.DS_Store

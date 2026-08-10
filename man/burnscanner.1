@@ -1,0 +1,104 @@
+.TH BURNSCANNER 1 "2026-08-05" "Burn Suite 1.0" "Burn Suite Manual"
+.SH NAME
+burnscanner \- automated network vulnerability scanner
+.SH SYNOPSIS
+.B sudo python3 ./burnscanner.py
+.br
+.B sudo burnscanner
+.RI ( "if installed via " install.sh )
+.SH DESCRIPTION
+.B burnscanner
+discovers live hosts in a target network range, scans each for open
+ports and service versions, queries the NVD CVE database for known
+vulnerabilities in detected software, runs Nmap's vuln script suite
+against each host, and optionally launches Metasploit against any
+confirmed vulnerability. Results are written as a plain-text report to
+.IR burn_report/ .
+.PP
+The tool is interactive: it prompts for a target, then runs unattended
+through host discovery, port/service scanning, CVE lookup, and Nmap
+vuln scripts. It will ask for explicit confirmation before attempting
+any Metasploit exploit.
+.SH REQUIREMENTS
+.TP
+.B nmap
+Required. The tool exits immediately (code 2) if not found.
+.TP
+.B metasploit (msfconsole)
+Optional \- only needed if you choose to attempt exploits.
+.TP
+.B python3\-requests
+Required for CVE lookups against the NVD API.
+.PP
+Best results require root (SYN scans, OS detection, some NSE scripts).
+Without root the tool still runs, in a degraded capacity.
+.SH USAGE
+.TP
+.B 1.
+Enter a target IP or network range when prompted.
+.br
+Examples: \fB192.168.1.0/24\fR, \fB192.168.1.50\fR, \fB192.168.1.1\-50\fR
+.TP
+.B 2.
+The tool pings the range to find live hosts, then for each host: scans
+open ports/services, looks up CVEs for detected software versions
+(cached per product+version to avoid redundant NVD queries within the
+same scan), and runs Nmap's vuln script suite.
+.TP
+.B 3.
+If any host has a confirmed vulnerability, you're asked whether to
+search Metasploit and attempt an exploit. Nothing runs without your
+explicit "yes" and your explicit module selection.
+.TP
+.B 4.
+A \fB.txt\fR report is written to \fIburn_report/burnscan_<timestamp>.txt\fR.
+.SH CONFIGURATION
+Edit the constants near the top of \fBburnscanner.py\fR:
+.TP
+.B REPORT_DIR
+Where reports are written. Defaults to \fIburn_report/\fR next to the script.
+.TP
+.B SCAN_DIR
+Scratch directory for intermediate Nmap XML output. Defaults to \fI/tmp/burnscan\fR.
+.SH EXIT STATUS
+.TP
+.B 0
+Completed normally.
+.TP
+.B 1
+User cancelled or gave invalid input (e.g. no target entered).
+.TP
+.B 2
+Environment/dependency problem (e.g. nmap not found).
+.TP
+.B 3
+Target produced no usable data (e.g. no live hosts found).
+.SH DIAGNOSTICS
+Every failure, skip, or empty result is logged to the console and to
+the report's DIAGNOSTICS section as a \fBSCAN\-NNN\fR code. See
+.I ERROR_CODES.txt
+in the suite root for the full reference \- it explains which codes
+represent a genuine "tested and clean" finding versus an incomplete
+check that shouldn't be read as a security conclusion.
+.SH FILES
+.TP
+.I burn_report/burnscan_YYYYMMDD_HHMMSS.txt
+Generated report for each run.
+.TP
+.I /tmp/burnscan/
+Scratch directory for Nmap XML output during a scan.
+.SH SECURITY CONSIDERATIONS
+.B FOR AUTHORIZED TESTING ONLY.
+Only scan networks and hosts you own or have explicit written
+permission to test. Unauthorized scanning and exploitation is a
+federal crime under the Computer Fraud and Abuse Act (CFAA) and
+equivalent laws worldwide. The Metasploit exploit step is gated
+behind an explicit confirmation for this reason \- do not confirm it
+without authorization.
+.SH SEE ALSO
+.BR burncracker (1),
+.BR burnrecon (1),
+.BR burnweb (1),
+.BR burnreport (1),
+.BR burnsuite (7),
+.BR nmap (1)

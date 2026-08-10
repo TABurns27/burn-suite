@@ -1,0 +1,290 @@
+================================================================================
+  BURN SUITE — ERROR & DIAGNOSTIC CODE REFERENCE
+================================================================================
+
+  Every Burn Suite tool logs a short code to the console whenever something
+  fails, gets skipped, or comes back with no results — and every generated
+  report includes a DIAGNOSTICS section listing every code that fired during
+  that run. This file is the legend for what each code means.
+
+  WHY THIS EXISTS
+  ---------------
+  "No vulnerabilities found" and "we couldn't check for vulnerabilities" look
+  identical in a plain results list. They are not the same thing, and mixing
+  them up is how real findings get missed or false confidence gets reported.
+  Every code below is tagged with what kind of result it represents:
+
+    [HARDENED]    The check ran successfully and found nothing. This is a
+                   real, reportable negative result — e.g. "no CVEs matched
+                   the detected service version" means the check happened
+                   and came back clean, not that it was skipped.
+
+    [INCONCLUSIVE] The check could not be completed (tool missing, target
+                   unreachable, rate-limited, timed out). This is NOT a
+                   security finding either way — it means re-testing is
+                   needed before drawing a conclusion.
+
+    [ENV]          A setup/environment problem (missing dependency, wrong
+                   permissions, bad input) unrelated to the target.
+
+  CODE FORMAT
+  -----------
+  <TOOL>-<N>  where N's first digit is the category:
+
+    1xx  Environment / setup problem
+    2xx  Target / input problem
+    3xx  Execution failure (timeout, crash, parse error)
+    4xx  Negative or empty result — the interesting "why nothing showed up"
+    5xx  Degraded or skipped check (missing optional tool, rate limit, etc.)
+
+  EXIT CODES
+  ----------
+  Each tool also exits with a distinct process exit code so failures are
+  scriptable, not just readable:
+
+    0  = completed normally
+    1  = user cancelled or gave invalid input
+    2  = environment/dependency problem (see 1xx codes)
+    3  = target unreachable or produced no usable data to work with
+
+================================================================================
+  BURN SCANNER (SCAN-xxx)
+================================================================================
+
+  SCAN-101  [ENV]           Not running as root — SYN scans, OS detection,
+                             and some NSE scripts may be degraded. Not fatal.
+  SCAN-102  [ENV]           nmap not found — fatal, exits. Nothing in this
+                             tool works without it.
+  SCAN-201  [ENV]           No target entered.
+  SCAN-202  [4xx/HARDENED]  No live hosts found in target range. Could mean
+                             the host(s) are down, ICMP/ping is filtered by
+                             a firewall, or the range/IP was mistyped.
+  SCAN-301  [INCONCLUSIVE]  Ping sweep timed out — target range likely too
+                             large, or the network is very slow.
+  SCAN-302  [INCONCLUSIVE]  Service/version scan timed out on a host —
+                             results for that host are incomplete.
+  SCAN-303  [INCONCLUSIVE]  Vuln script scan timed out on a host (300s) —
+                             that host's vuln results are incomplete.
+  SCAN-304  [INCONCLUSIVE]  Could not parse nmap's XML output for a host —
+                             nmap may have failed or produced no data.
+  SCAN-401  [HARDENED]      No open ports found on a host. The host's
+                             firewall may be filtering all scanned ports,
+                             or it genuinely exposes nothing on this range.
+  SCAN-402  [HARDENED]      No CVEs matched a detected service/version in
+                             the NVD database — software appears current.
+                             Only fires when the lookup itself succeeded;
+                             a failed/rate-limited lookup is SCAN-501 instead.
+  SCAN-403  [HARDENED]      No script-detected vulnerabilities on a host —
+                             nmap's vuln script suite found nothing
+                             confirmable. Does not guarantee full security.
+  SCAN-501  [INCONCLUSIVE]  NVD API request failed or was rate-limited —
+                             CVE results for this service may be incomplete.
+  SCAN-502  [INCONCLUSIVE]  Metasploit search or exploit attempt failed,
+                             errored, or timed out.
+  SCAN-503  [INCONCLUSIVE]  msfconsole not found — cannot attempt exploits
+                             even though the user opted in.
+
+================================================================================
+  BURN CRACK (CRACK-xxx)
+================================================================================
+
+  CRACK-101  [ENV]           Not running as root — fatal, exits.
+  CRACK-102  [ENV]           Wordlist not found and no valid custom path
+                              given — fatal, exits.
+  CRACK-103  [ENV]           VM detected and user declined to continue —
+                              fatal, exits (user choice, not an error).
+  CRACK-104  [ENV]           A required tool (airodump-ng, aireplay-ng,
+                              aircrack-ng, or iw) is missing. Logged by the
+                              startup preflight and by --check. Fatal on a
+                              normal run; install the aircrack-ng suite.
+  CRACK-106  [ENV]           No wireless interfaces found on this system —
+                              check that the adapter is plugged in and
+                              recognized (iw dev). Fatal, exits.
+  CRACK-201  [ENV]           Monitor mode failed to start. Common causes:
+                              running in a VM without USB WiFi passthrough,
+                              or the card doesn't support monitor mode.
+  CRACK-202  [4xx/HARDENED]  No networks found in range — card issue, or
+                              genuinely no networks in range/channel.
+  CRACK-301  [INCONCLUSIVE]  Network scan produced no CSV output —
+                              airodump-ng may have failed to start.
+  CRACK-302  [4xx/HARDENED]  No handshake captured. No client connected
+                              during the capture window, or deauth did not
+                              force a reconnect (may indicate PMF/802.11w
+                              protection on the client or AP).
+  CRACK-303  [INCONCLUSIVE]  Capture-to-hashcat conversion failed —
+                              hcxtools/cap2hccapx missing or the .cap file
+                              doesn't contain a usable handshake.
+  CRACK-304  [INCONCLUSIVE]  Cracking process timed out (1 hour limit) —
+                              inconclusive, not a "not crackable" result.
+  CRACK-305  [INCONCLUSIVE]  Clientless PMKID capture (hcxdumptool) produced
+                              no output — no PMKID obtained. The AP may not
+                              expose a PMKID, or hcxdumptool's CLI differs on
+                              the installed version.
+  CRACK-306  [INCONCLUSIVE]  PMKID capture contained no crackable PMKID or
+                              handshake — this AP may not be PMKID-vulnerable.
+  CRACK-401  [4xx/HARDENED]  Password not found in the wordlist. The
+                              passphrase resists THIS wordlist — does not
+                              guarantee resistance to a larger wordlist,
+                              rule-based mutation, or a targeted attack.
+  CRACK-402  [4xx]           Target network is open (OPN) — not applicable,
+                              there is no password to crack.
+  CRACK-403  [4xx]           Target is WPA3-only (SAE). SAE resists OFFLINE
+                              dictionary attacks by design — capturing does
+                              not enable cracking, regardless of hardware.
+                              Only WPA3 transition mode (which also offers
+                              WPA2) is attackable, via the WPA2 path.
+  CRACK-404  [4xx]           Target is WPA/WPA2-Enterprise (802.1X/EAP) —
+                              no pre-shared key to dictionary-attack. This
+                              tool targets PSK/SAE-PSK networks.
+  CRACK-501  [5xx]           hashcat not found — falling back to
+                              aircrack-ng (CPU).
+  CRACK-502  [5xx]           No hashcat rule files found — running rules
+                              mode without rules (reduced coverage).
+  CRACK-503  [5xx]           nmcli/NetworkManager not found — skipping the
+                              per-interface isolation step. Not a problem
+                              for this tool; there's nothing to isolate
+                              from without NetworkManager present.
+
+================================================================================
+  BURN RECON (RECON-xxx)
+================================================================================
+
+  RECON-101  [ENV]           dig not found — DNS record lookup skipped
+                              entirely (distinct from RECON-201, which
+                              means dig ran and genuinely found nothing).
+  RECON-102  [ENV]           whois not found — WHOIS lookup skipped
+                              entirely (distinct from RECON-202).
+  RECON-103  [ENV]           nmap not found — quick port scan skipped
+                              entirely (distinct from RECON-206).
+  RECON-104  [ENV]           --wordlist file not found — DNS brute-force
+                              fell back to the built-in wordlist.
+  RECON-105  [ENV]           Report directory not writable (often because an
+                              earlier sudo run left burn_report/ owned by
+                              root) — the report was saved to a fallback
+                              location instead. Fix: chown -R $USER burn_report
+  RECON-201  [4xx/HARDENED]  No DNS records found — domain may not exist,
+                              or intentionally has a minimal DNS footprint.
+                              Only fires when dig actually ran; if dig
+                              itself is missing, that's RECON-101 instead.
+  RECON-202  [INCONCLUSIVE]  WHOIS lookup failed or returned no data —
+                              WHOIS privacy protection may be enabled, or
+                              the registry didn't respond. If `whois`
+                              itself is missing, that's RECON-102 instead.
+  RECON-203  [4xx/HARDENED]  No subdomains found via certificate
+                              transparency logs — minimal public subdomain
+                              footprint. Only fires when crt.sh actually
+                              responded; if crt.sh itself failed, that's
+                              RECON-503 instead.
+  RECON-204  [INCONCLUSIVE]  Could not resolve target to an IP address —
+                              DNS resolution failed.
+  RECON-205  [INCONCLUSIVE]  Could not connect to a web server on this
+                              target — server may be down, firewalled, or
+                              not serving HTTP/HTTPS at all.
+  RECON-206  [4xx/HARDENED]  No common ports open — firewall filtering,
+                              or genuinely minimal exposed services. Only
+                              fires when nmap actually ran; if nmap itself
+                              is missing, that's RECON-103 instead.
+  RECON-207  [OK/HARDENED]   Email authentication present and reasonably
+                              strict (SPF + enforcing DMARC). Good posture.
+  RECON-208  [4xx/HARDENED]  DNS zone transfer refused by all name servers
+                              — the expected, correct behavior.
+  RECON-209  [INCONCLUSIVE]  TLS certificate inspection failed, or the cert
+                              did not validate (self-signed/untrusted CA).
+  RECON-210  [4xx/HARDENED]  No subdomain-takeover candidates — no dangling
+                              CNAMEs matched a known-service fingerprint.
+  RECON-211  [4xx/HARDENED]  No exposed web-metadata files found
+                              (robots.txt / sitemap.xml / security.txt).
+  RECON-212  [INCONCLUSIVE]  CORS not testable (no reachable web server) or
+                              not reflectively misconfigured.
+  RECON-213  [4xx/HARDENED]  DNS brute-force found nothing, or wildcard DNS
+                              was detected and the brute-force was skipped.
+  RECON-214  [INCONCLUSIVE]  ASN/netblock expansion returned no announced
+                              prefixes (or no ASN was known for the target).
+  RECON-401  [4xx/HARDENED]  No vulnerability findings at all — no missing
+                              security headers, no risky open ports, no
+                              Shodan CVEs, domain not expiring soon.
+  RECON-501  [5xx]           No Shodan API key configured — Shodan
+                              intelligence skipped entirely. A config gap,
+                              not a target security finding.
+  RECON-502  [INCONCLUSIVE]  Shodan API returned an error (rate-limited,
+                              invalid key, or no data indexed for this IP).
+  RECON-503  [INCONCLUSIVE]  crt.sh returned no data or the request failed.
+  RECON-504  [INCONCLUSIVE]  A passive-DNS source (Certspotter/HackerTarget/
+                              OTX) failed — subdomain results may be partial.
+  RECON-505  [5xx]           No Hunter.io API key configured — email
+                              enrichment skipped. A config gap, not a finding.
+  RECON-506  [INCONCLUSIVE]  Hunter.io API returned an error (rate-limited,
+                              invalid key, or no data for this domain).
+  RECON-507  [5xx]           No HaveIBeenPwned API key configured — breach
+                              lookup skipped. A config gap, not a finding.
+  RECON-508  [INCONCLUSIVE]  HIBP API returned an error (rate-limited,
+                              invalid key, or no breaches for this domain).
+
+================================================================================
+  BURN WEB (WEB-xxx)
+================================================================================
+
+  WEB-201  [INCONCLUSIVE]   Could not connect to target over HTTPS or
+                             HTTP — fatal, exits. Target may be down, DNS
+                             may be failing, or the URL was mistyped.
+  WEB-202  [INCONCLUSIVE]   Server returns HTTP 200 for unknown/nonexistent
+                             paths (soft-404 behavior) — exposed-file and
+                             directory-fuzzing checks are unreliable on
+                             this target and were skipped.
+  WEB-401  [4xx/HARDENED]   No exposed sensitive files found (.git, .env,
+                             backups, etc.) — none of the checked paths
+                             are publicly accessible.
+  WEB-402  [4xx/HARDENED]   No hidden directories/files discovered.
+                             Nothing in the wordlist matched — does not
+                             rule out paths outside the wordlist used.
+  WEB-403  [4xx/HARDENED]   nikto ran to completion and found nothing
+                             notable — no known misconfiguration/
+                             vulnerability signatures matched.
+  WEB-404  [4xx/HARDENED]   No weak TLS protocols/ciphers found — modern
+                             TLS configuration only.
+  WEB-405  [4xx]            No parameterized URLs or forms discovered —
+                             nothing available to test for exploitation.
+  WEB-406  [4xx/HARDENED]   sqlmap did not confirm an injection point at
+                             conservative settings (level=1, risk=1).
+                             Does not rule out deeper/manual testing.
+  WEB-501  [5xx]            gobuster not installed — directory fuzzing
+                             fell back to a small built-in path list
+                             (far less thorough than a real wordlist).
+  WEB-502  [5xx]            nikto not installed — known-vuln/misconfig
+                             scan skipped entirely.
+  WEB-503  [5xx]            sslscan not installed — TLS/cipher check
+                             skipped entirely.
+  WEB-504  [5xx]            sqlmap not installed — active exploitation
+                             unavailable even if the user authorizes it.
+  WEB-505  [INCONCLUSIVE]   sqlmap timed out (600s) — inconclusive, not a
+                             confirmation that the target is safe.
+  WEB-506  [INCONCLUSIVE]   nikto timed out (300s) — scan incomplete, NOT
+                             the same as WEB-403 (which means it actually
+                             ran and found nothing).
+  WEB-507  [INCONCLUSIVE]   sslscan timed out (60s) — TLS check incomplete,
+                             NOT the same as WEB-404 (which means it
+                             actually ran and found nothing weak).
+
+================================================================================
+  BURN REPORT (REPORT-xxx)
+================================================================================
+
+  REPORT-101  [4xx]         No .txt reports found in burn_report/ — fatal,
+                             exits. Run another tool first to generate one.
+  REPORT-102  [ENV]         Invalid selection input — not numbers or 'all'.
+  REPORT-103  [ENV]         No valid report numbers in the selection.
+
+================================================================================
+  READING A REPORT
+================================================================================
+
+  Every generated .txt report ends with a DIAGNOSTICS section listing every
+  code that fired during that run, in the order it happened. Use it to
+  answer: "is a clean report because the target held up, or because
+  something along the way couldn't finish?" If a section's only findings
+  are [HARDENED] codes, treat it as a real negative result. If [INCONCLUSIVE]
+  or [ENV] codes show up for a section, treat that section as untested and
+  re-run once the underlying issue (missing tool, rate limit, connectivity)
+  is resolved.
+
+================================================================================

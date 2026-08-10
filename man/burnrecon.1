@@ -1,0 +1,170 @@
+.TH BURNRECON 1 "2026-08-10" "Burn Suite 1.2" "Burn Suite Manual"
+.SH NAME
+burnrecon \- automated OSINT reconnaissance tool
+.SH SYNOPSIS
+.B python3 ./burnrecon.py
+.RI [ target ]
+.RI [ options ]
+.br
+.B burnrecon
+.RI [ target ]
+.RI [ options ]
+.RI "  (if installed via " install.sh )
+.SH DESCRIPTION
+.B burnrecon
+runs a reconnaissance sweep against a domain, IP, or company name and
+writes a report. It is
+.B passive by default \-
+it queries only third\-party OSINT sources (WHOIS, certificate
+transparency, passive DNS, IP geolocation, Shodan, ASN data, email\-auth
+records, Hunter.io, HaveIBeenPwned) and never sends packets to the
+target's own infrastructure.
+.PP
+The
+.B \-\-active
+flag additionally probes the target directly (HTTP header and TLS
+certificate grab, CORS test, DNS zone\-transfer attempt, subdomain\-takeover
+checks, web\-metadata fetch, and a quick nmap port scan).
+The
+.B \-\-aggressive
+flag adds loud techniques on top (DNS subdomain brute\-force and a full
+top\-1000 scripted port scan); it implies \fB\-\-active\fR.
+.PP
+It analyzes the gathered data for actionable findings (missing security
+headers, weak/missing SPF and DMARC, risky open ports, TLS problems, an
+allowed zone transfer, dangling\-CNAME takeovers, an expiring domain,
+known CVEs from Shodan) and writes a plain\-text and/or JSON report.
+.PP
+Does not require root.
+.SH REQUIREMENTS
+.TP
+.B dig (dnsutils)
+Required for DNS record, DMARC, zone\-transfer, and takeover lookups. Skipped gracefully if missing.
+.TP
+.B whois
+Required for WHOIS lookups. Skipped gracefully if missing.
+.TP
+.B nmap
+Required for the port scan (active/aggressive). Skipped gracefully if missing.
+.TP
+.B python3\-requests
+Required for crt.sh, passive DNS, ipapi.co, RIPEstat, Shodan, Hunter, and HIBP lookups.
+.TP
+.B python3\-cryptography
+Optional. Enables full parsing of TLS certificates that fail validation
+(SANs, exact expiry, signature algorithm) instead of just the failure
+reason. Degrades gracefully if missing.
+.SH OPTIONS
+.TP
+.I target
+Domain, IP, or company name. If omitted, the tool prompts interactively.
+.TP
+.B \-\-active
+Enable active probes (HTTP/TLS grab, CORS, zone transfer, takeover,
+web\-metadata, quick port scan) in addition to the passive OSINT.
+.TP
+.B \-\-aggressive
+Enable active plus aggressive techniques (DNS brute\-force, full
+top\-1000 scripted port scan). Implies \fB\-\-active\fR.
+.TP
+.B \-o, \-\-output \fR{txt,json,both}
+Report format. Default \fBtxt\fR. \fBboth\fR writes a .txt and a .json.
+.TP
+.B \-\-output\-dir \fIDIR\fR
+Write reports into \fIDIR\fR instead of the default \fIburn_report/\fR.
+.TP
+.B \-\-no\-portscan
+Skip the nmap port scan even in active/aggressive mode.
+.TP
+.B \-\-wordlist \fIFILE\fR
+Custom wordlist for \fB\-\-aggressive\fR DNS brute\-force.
+.TP
+.B \-f, \-\-file \fIFILE\fR
+Batch mode: read one target per line from \fIFILE\fR; each gets its own report.
+.TP
+.B \-q, \-\-quiet
+Reduce console output (errors are still shown).
+.SH USAGE
+.TP
+.B Passive (default):
+\fBpython3 ./burnrecon.py example.com\fR
+.TP
+.B Active, both report formats:
+\fBpython3 ./burnrecon.py example.com \-\-active \-o both\fR
+.TP
+.B Aggressive:
+\fBpython3 ./burnrecon.py example.com \-\-aggressive\fR
+.PP
+IP\-only targets skip subdomain enumeration, email\-format guessing, DMARC,
+zone transfer, and DNS brute\-force (not applicable). A report is written to
+\fIburn_report/burnrecon_<timestamp>.{txt,json}\fR.
+.SH CONFIGURATION
+.SS Shodan API key
+Shodan intelligence is optional and requires a free API key from
+.BR https://shodan.io .
+Each user must supply their own key. Copy the template
+\fIshodan_api.txt.example\fR to \fIshodan_api.txt\fR (in the same folder
+as \fBburnrecon.py\fR), then replace the placeholder with your key \- no
+quotes, just the key itself:
+.PP
+.RS
+.EX
+cp shodan_api.txt.example shodan_api.txt
+.EE
+.RE
+.PP
+The script reads it automatically at startup; if the file is missing or
+empty, Shodan lookups are skipped with a diagnostic code rather than
+failing. \fIshodan_api.txt\fR is git\-ignored so a personal key is never
+committed or shared.
+.SS Hunter.io and HaveIBeenPwned keys
+Two further optional OSINT sources use the same pattern. Copy
+\fIhunter_api.txt.example\fR to \fIhunter_api.txt\fR for Hunter.io email
+enrichment, and \fIhibp_api.txt.example\fR to \fIhibp_api.txt\fR for
+HaveIBeenPwned breach lookups, pasting your own key into each. Both files
+are git\-ignored; if absent, those lookups are skipped with a diagnostic
+code.
+.SH EXIT STATUS
+Recon has no fatal error paths once started \- it always completes and
+writes a report, even if every individual module fails or finds nothing;
+missing dependencies and empty results are recorded as diagnostic codes
+instead of stopping the run. The tool exits non\-zero only for a usage
+error before the scan begins (e.g. no target given, or an unreadable
+\fB\-\-file\fR).
+.SH DIAGNOSTICS
+Every failure, skip, or empty result is logged to the console and to
+the report's DIAGNOSTICS section as a \fBRECON\-NNN\fR code. See
+.I ERROR_CODES.txt
+in the suite root for the full reference \- e.g. "no DNS records found"
+(a real result) is a distinct code from "dig isn't installed" (an
+environment gap), so the two are never conflated in a report.
+.SH FILES
+.TP
+.I burn_report/burnrecon_YYYYMMDD_HHMMSS.txt
+Generated report for each run.
+.TP
+.I burn_report/burnrecon_YYYYMMDD_HHMMSS.json
+Generated JSON report (with \fB\-o json\fR or \fB\-o both\fR).
+.TP
+.I shodan_api.txt, hunter_api.txt, hibp_api.txt
+Optional API keys, read at startup. Each is git\-ignored.
+.SH SECURITY CONSIDERATIONS
+.B FOR AUTHORIZED TESTING ONLY.
+Only investigate domains/targets you own or have explicit written
+permission to investigate.
+.PP
+The default mode is passive \- no packets are sent to the target's own
+infrastructure, only queries to third\-party OSINT services. The
+.B \-\-active
+and
+.B \-\-aggressive
+flags DO contact the target directly (HTTP/TLS connections, DNS zone\-transfer
+attempts, and nmap port scans; brute\-force under \fB\-\-aggressive\fR). Use
+them only within the scope of your authorization. No exploitation or
+credential attacks are performed in any mode.
+.SH SEE ALSO
+.BR burnscanner (1),
+.BR burncracker (1),
+.BR burnweb (1),
+.BR burnreport (1),
+.BR burnsuite (7)

@@ -1,0 +1,122 @@
+.TH BURNSUITE 7 "2026-08-05" "Burn Suite 1.0" "Burn Suite Manual"
+.SH NAME
+burnsuite \- overview of the Burn Suite penetration testing toolkit
+.SH DESCRIPTION
+.B Burn Suite
+is a set of five standalone, homemade command\-line pentesting tools
+for Kali Linux. Each tool is a single self\-contained Python script \-
+none of them import from one another, so any one of them can be copied
+out and run on its own. Every tool writes a readable
+.B .txt
+report to \fIburn_report/\fR and logs a diagnostic code for every
+failure, skip, or notable empty result, so reports distinguish a real
+"tested and clean" finding from an incomplete check.
+.SH TOOLS
+.TP
+.BR burnscanner (1)
+Network vulnerability scanner: host discovery, port/service scanning,
+CVE lookup, Nmap vuln scripts, optional Metasploit exploitation.
+Requires root for best results.
+.TP
+.BR burncracker (1)
+WiFi handshake capture and password cracker: monitor mode, network
+scanning, deauth\-assisted handshake capture, aircrack\-ng/hashcat
+cracking. Requires root and a physical wireless adapter.
+.TP
+.BR burnrecon (1)
+OSINT reconnaissance: DNS, WHOIS, subdomains, IP geolocation, Shodan,
+HTTP fingerprinting, email formats, common ports. Passive, no root
+required.
+.TP
+.BR burnweb (1)
+Web application recon and weakness scanner: fingerprinting, exposed
+files, directory fuzzing, nikto, TLS check, security headers. Passive
+by default; active SQL injection testing is available but gated
+behind an explicit typed confirmation. No root required.
+.TP
+.BR burnreport (1)
+Cross\-tool report combiner: merges findings and diagnostics from
+multiple existing reports into one summarized document. No root
+required, does not scan anything itself.
+.SH INSTALLATION
+Place all five scripts, \fIinstall.sh\fR, \fIREADME.txt\fR, and
+\fIERROR_CODES.txt\fR in the same folder, then run
+.BR "sudo ./install.sh" .
+This installs dependencies, registers each tool as a system command
+(\fBburnscan\fR, \fBburncrack\fR, \fBburnrecon\fR, \fBburnweb\fR,
+\fBburnreport\fR) via symlinks in \fI/usr/local/bin\fR, and creates the
+\fIburn_report/\fR directory. Running any tool directly with
+.B "python3 ./<toolname>.py"
+works identically without installing.
+.PP
+On some systems (Kali included) \fBsudo\fR's \fIsecure_path\fR excludes
+\fI/usr/local/bin\fR as a hardening default. If \fB"sudo burnscanner"\fR or
+\fB"sudo burncracker"\fR reports "command not found" despite a successful
+install, use the full path instead:
+\fB"sudo python3 /path/to/burnsuite/burnscanner.py"\fR.
+\fBinstall.sh\fR detects this and prints a note when it applies.
+.SH DIAGNOSTIC CODES
+Every tool logs a short code (e.g. \fBSCAN\-401\fR, \fBCRACK\-302\fR,
+\fBRECON\-203\fR, \fBWEB\-406\fR) whenever a check fails, gets skipped,
+or comes back empty, and every report ends with a \fBDIAGNOSTICS\fR
+section listing every code that fired during that run. Codes are
+categorized:
+.TP
+.B [HARDENED]
+The check ran successfully and found nothing \- a real, reportable
+negative result.
+.TP
+.B [INCONCLUSIVE]
+The check could not complete (missing tool, timeout, rate limit,
+connectivity issue). Not a security conclusion either way.
+.TP
+.B [ENV]
+A setup/environment problem unrelated to the target.
+.PP
+The full reference for every code, grouped by tool, is in
+.I ERROR_CODES.txt
+in the suite root.
+.SH TESTING
+A persisted regression test suite lives in \fItests/\fR (stdlib
+.BR unittest ,
+no extra dependencies). Run it with:
+.PP
+.nf
+.RS
+python3 \-m unittest discover \-s tests \-p "test_*.py"
+.RE
+.fi
+.PP
+or via the wrapper script \fItests/run_tests.sh\fR.
+.SH FILES
+.TP
+.I burn_report/
+All generated reports (auto\-created).
+.TP
+.I ERROR_CODES.txt
+Full diagnostic code reference for all five tools.
+.TP
+.I README.txt
+Full setup, configuration, and usage documentation.
+.TP
+.I shodan_api.txt
+Optional Shodan API key, read by \fBburnrecon\fR.
+.TP
+.I install.sh
+Dependency installer and system command registration script.
+.SH SECURITY CONSIDERATIONS
+.B FOR AUTHORIZED TESTING ONLY.
+Only use these tools on networks, devices, accounts, and applications
+you own or have explicit written permission to test. Unauthorized use
+is a federal crime under the Computer Fraud and Abuse Act (CFAA) and
+equivalent laws worldwide. The authors assume no liability for misuse.
+Tools with an active\-exploitation capability
+(\fBburnscanner\fR's Metasploit step, \fBburnweb\fR's sqlmap step) gate
+that capability behind explicit, separate confirmation for exactly
+this reason.
+.SH SEE ALSO
+.BR burnscanner (1),
+.BR burncracker (1),
+.BR burnrecon (1),
+.BR burnweb (1),
+.BR burnreport (1)

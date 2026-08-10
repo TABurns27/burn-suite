@@ -1,0 +1,117 @@
+.TH BURNWEB 1 "2026-08-05" "Burn Suite 1.0" "Burn Suite Manual"
+.SH NAME
+burnweb \- automated web application recon and weakness scanner
+.SH SYNOPSIS
+.B python3 ./burnweb.py
+.br
+.B burnweb
+.RI ( "if installed via " install.sh )
+.SH DESCRIPTION
+.B burnweb
+fingerprints a web application's tech stack, checks for exposed
+sensitive files (\fI.git\fR, \fI.env\fR, backups), fuzzes for hidden
+directories, runs nikto for known misconfigurations, checks TLS/cipher
+configuration, and flags missing security headers \- all
+.B passively
+by default.
+.PP
+Active exploitation (SQL injection testing via sqlmap) is available
+but gated behind a separate, explicit, exact\-phrase confirmation at
+the end of the scan, plus a second per\-target confirmation. It will
+.B never
+run without both. See \fBEXPLOITATION GATE\fR below.
+.PP
+Does not require root.
+.SH REQUIREMENTS
+.TP
+.B python3\-requests
+The only hard requirement \- the tool runs its full passive sweep with
+just this installed.
+.TP
+.B nikto, gobuster, sslscan, sqlmap
+Each is checked independently at the point of use and skipped
+gracefully (with an install hint and a diagnostic code) if missing.
+Without gobuster, directory fuzzing falls back to a small built\-in
+path list.
+.SH USAGE
+.TP
+.B 1.
+Enter a target URL or domain when prompted.
+.br
+Examples: \fBhttps://example.com\fR, \fBexample.com\fR
+.TP
+.B 2.
+The tool runs all passive checks automatically: fingerprinting,
+robots.txt/sitemap, exposed\-file checks, directory fuzzing, nikto,
+and a TLS check. Path\-probing checks (exposed files, fallback
+directory fuzz) run concurrently for speed.
+.TP
+.B 3.
+If the server returns HTTP 200 for nonexistent paths ("soft\-404"),
+path\-existence checks are skipped as unreliable and this is recorded
+as a diagnostic rather than silently producing false negatives.
+.SS EXPLOITATION GATE
+If parameterized URLs or forms were discovered during the passive
+sweep, you are shown a large warning and asked to type the exact
+phrase
+.B "I HAVE PERMISSION"
+to proceed. Pressing Enter (or typing anything else) skips
+exploitation entirely \- nothing is lost, the report is still
+generated with passive findings only.
+.PP
+If confirmed, you then pick one specific candidate URL from a numbered
+list and confirm
+.I that exact target
+a second time by typing
+.BR yes .
+Only then does sqlmap run, with conservative settings
+(\fB\-\-level=1 \-\-risk=1\fR).
+.SH CONFIGURATION
+Edit the constants near the top of \fBburnweb.py\fR:
+.TP
+.B DIR_WORDLIST
+Wordlist used by gobuster if installed. Default \fI/usr/share/wordlists/dirb/common.txt\fR.
+.TP
+.B SQLMAP_ARGS
+Arguments passed to sqlmap during the exploitation step. Deliberately
+conservative by default \- change with care.
+.TP
+.B MAX_WORKERS
+Concurrent requests used for path\-probing checks against a single
+target. Default 8.
+.SH EXIT STATUS
+.TP
+.B 0
+Completed normally.
+.TP
+.B 3
+Could not connect to the target over HTTPS or HTTP \- fatal, exits
+before any report is written.
+.SH DIAGNOSTICS
+Every failure, skip, timeout, or empty result is logged to the console
+and to the report's DIAGNOSTICS section as a \fBWEB\-NNN\fR code. See
+.I ERROR_CODES.txt
+in the suite root for the full reference. Notably, a tool timing out
+(e.g. nikto after 300s) is logged as a distinct code from that same
+tool actually running to completion and finding nothing \- the two are
+never conflated.
+.SH FILES
+.TP
+.I burn_report/burnweb_YYYYMMDD_HHMMSS.txt
+Generated report for each run.
+.SH SECURITY CONSIDERATIONS
+.B FOR AUTHORIZED TESTING ONLY.
+Only test web applications you own or have explicit written permission
+to test. The exploitation gate exists specifically to prevent
+accidental unauthorized SQL injection testing \- do not type the
+confirmation phrase unless the site owner has authorized active
+exploitation. Unauthorized exploitation is a federal crime under the
+CFAA and equivalent laws worldwide.
+.SH SEE ALSO
+.BR burnscanner (1),
+.BR burncracker (1),
+.BR burnrecon (1),
+.BR burnreport (1),
+.BR burnsuite (7),
+.BR nikto (1),
+.BR sqlmap (1)

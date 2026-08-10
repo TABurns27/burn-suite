@@ -1,0 +1,92 @@
+.TH BURNREPORT 1 "2026-08-05" "Burn Suite 1.0" "Burn Suite Manual"
+.SH NAME
+burnreport \- cross\-tool report combiner for the Burn Suite
+.SH SYNOPSIS
+.B python3 ./burnreport.py
+.br
+.B burnreport
+.RI ( "if installed via " install.sh )
+.SH DESCRIPTION
+.B burnreport
+does not scan anything itself. It reads the existing \fB.txt\fR
+reports already sitting in \fIburn_report/\fR (written by
+.BR burnscanner (1),
+.BR burncracker (1),
+.BR burnrecon (1),
+and
+.BR burnweb (1) ),
+lets you pick several to combine, and merges their findings and
+diagnostics into one summarized report \- with each entry tagged by
+which tool it came from, sorted by severity.
+.PP
+Useful when an engagement touched the same target with multiple tools
+and you want one document instead of several. Does not require root.
+.SH USAGE
+.TP
+.B 1.
+Run with no arguments. Every report found in \fIburn_report/\fR is
+listed, newest first, showing its source tool, parsed target, and
+timestamp.
+.TP
+.B 2.
+Enter a comma\-separated list of report numbers to combine, or type
+.B all
+to combine everything listed.
+.TP
+.B 3.
+A combined report is written to
+\fIburn_report/burnreport_<timestamp>.txt\fR containing:
+.RS
+.IP \(bu 3
+.B SOURCE REPORTS
+\- which reports were combined
+.IP \(bu 3
+.B COMBINED FINDINGS
+\- every finding from every source, tagged with its source tool and
+sorted by severity
+.IP \(bu 3
+.B COMBINED DIAGNOSTICS
+\- every diagnostic code from every source, tagged with its source tool
+.RE
+.SH PARSING NOTES
+The combiner parses
+.B burnscanner ,
+.B burnrecon ,
+and
+.B burnweb
+reports' structured \fBFINDINGS SUMMARY\fR / \fBVULNERABILITY SUMMARY\fR
+sections directly \- these three tools share one format by design so
+they combine cleanly.
+.B burncracker
+reports have a different shape (a single pass/fail result, not a
+findings list) and are included for their target/DIAGNOSTICS
+information but don't contribute to the findings list.
+.PP
+This is not a general\-purpose report parser \- it expects the exact
+format the other four tools write. If you hand\-edit a report file
+before combining, keep the section headers and \fB[SEVERITY] Title\fR
+/ \fBFIX \->\fR structure intact.
+.SH EXIT STATUS
+.TP
+.B 0
+Completed normally.
+.TP
+.B 1
+Invalid or empty selection.
+.TP
+.B 3
+No reports found in \fIburn_report/\fR to combine.
+.SH DIAGNOSTICS
+Logs its own failures as \fBREPORT\-NNN\fR codes \- see
+.I ERROR_CODES.txt
+in the suite root.
+.SH FILES
+.TP
+.I burn_report/burnreport_YYYYMMDD_HHMMSS.txt
+Generated combined report for each run.
+.SH SEE ALSO
+.BR burnscanner (1),
+.BR burncracker (1),
+.BR burnrecon (1),
+.BR burnweb (1),
+.BR burnsuite (7)

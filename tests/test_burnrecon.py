@@ -657,6 +657,22 @@ class BurnReconJsonReportTests(unittest.TestCase):
         path = self.mod.generate_report("example.com", {}, [], "aggressive")
         self.assertIn("AGGRESSIVE", read_file(path))
 
+    def test_report_renders_with_weak_sig_tls(self):
+        # Regression: a populated tls.weak_sigs list must not shadow the report
+        # writer w() and crash every section that follows the TLS section.
+        data = {"tls": {"valid": False, "reason": "untrusted", "subject_cn": "x",
+                        "issuer_cn": "CA", "protocol": "TLSv1.2", "chain_len": 2,
+                        "sig_algo": "sha256", "not_after": "2030-01-01", "days_left": 100,
+                        "sans": ["x.example.com"],
+                        "weak_sigs": [{"position": "intermediate",
+                                       "cn": "Old CA", "algo": "sha1"}]}}
+        content = read_file(self.mod.generate_report("example.com", data, [], "active"))
+        self.assertIn("WEAK SIG", content)
+        self.assertIn("Old CA", content)
+        # Sections that come AFTER TLS must still render — proof no crash/shadow.
+        self.assertIn("OPEN PORTS", content)
+        self.assertIn("DIAGNOSTICS", content)
+
     def test_unwritable_report_dir_falls_back(self):
         # Simulate a root-owned/unwritable REPORT_DIR by pointing it at an
         # existing *file*, and redirect the ~ fallback into a temp home.

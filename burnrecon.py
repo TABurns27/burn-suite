@@ -1438,8 +1438,8 @@ def generate_report(target, data, findings, mode="passive"):
             tls_entries.append(f"CHAIN      : {tls['chain_len']} cert(s)")
         if tls.get("sig_algo"):
             tls_entries.append(f"SIGNATURE  : {tls['sig_algo'].upper()} (leaf)")
-        for w in tls.get("weak_sigs", []):
-            tls_entries.append(f"WEAK SIG   : {w['position']} '{w['cn']}' — {w['algo'].upper()}")
+        for ws in tls.get("weak_sigs", []):
+            tls_entries.append(f"WEAK SIG   : {ws['position']} '{ws['cn']}' — {ws['algo'].upper()}")
         expires = tls.get("not_after", "") or ""
         if isinstance(tls.get("days_left"), int):
             expires += f"  ({tls['days_left']} days)"

@@ -132,6 +132,52 @@ class BurnReconIsIpTests(unittest.TestCase):
         self.assertFalse(self.mod.is_ip("127.1"))
 
 
+class BurnReconTargetNormalizeTests(unittest.TestCase):
+    """A pasted URL like 'president.ir/en' must collapse to the bare host, or
+    every DNS/WHOIS/TLS lookup fails on the invalid name."""
+
+    def setUp(self):
+        self.mod = load("burnrecon")
+
+    def test_strips_path(self):
+        self.assertEqual(self.mod._normalize_target("president.ir/en"), "president.ir")
+
+    def test_strips_scheme_and_path(self):
+        self.assertEqual(self.mod._normalize_target("https://president.ir/en"), "president.ir")
+
+    def test_strips_query_and_fragment(self):
+        self.assertEqual(self.mod._normalize_target("https://x.com/a/b?q=1#frag"), "x.com")
+
+    def test_strips_port(self):
+        self.assertEqual(self.mod._normalize_target("x.com:8443/path"), "x.com")
+
+    def test_strips_credentials(self):
+        self.assertEqual(self.mod._normalize_target("http://user:pass@x.com/p"), "x.com")
+
+    def test_trailing_slash(self):
+        self.assertEqual(self.mod._normalize_target("https://example.com/"), "example.com")
+
+    def test_bare_domain_unchanged(self):
+        self.assertEqual(self.mod._normalize_target("example.com"), "example.com")
+
+    def test_ipv4_unchanged(self):
+        self.assertEqual(self.mod._normalize_target("192.168.1.1"), "192.168.1.1")
+
+    def test_ipv4_with_port_and_path(self):
+        self.assertEqual(self.mod._normalize_target("192.168.1.1:8080/admin"), "192.168.1.1")
+
+    def test_empty_stays_empty(self):
+        self.assertEqual(self.mod._normalize_target("  "), "")
+
+    def test_main_hands_run_recon_a_clean_host(self):
+        captured = {}
+        with patch.object(self.mod, "banner"), \
+             patch.object(self.mod, "run_recon",
+                          side_effect=lambda t, c: captured.setdefault("t", t)):
+            self.mod.main(["https://president.ir/en"])
+        self.assertEqual(captured["t"], "president.ir")
+
+
 class BurnReconWhoisExpiryTests(unittest.TestCase):
     """Regression: gTLD WHOIS uses 'Registry Expiry Date:'. get_whois must
     capture it, and analyze_vulnerabilities must raise an expiry finding from

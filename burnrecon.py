@@ -41,6 +41,7 @@ import json
 import ssl
 import re
 import tempfile
+import urllib.parse
 import requests
 
 # Optional: full certificate parsing (SANs, exact expiry, signature algorithm)
@@ -148,9 +149,7 @@ def get_target():
     print("\n\033[92m[?]\033[0m Enter target domain or company name")
     print("    Examples: example.com  |  192.168.1.1  |  Tesla Inc")
     target = input("\033[92m>>> \033[0m").strip()
-    # Strip protocol if included
-    target = target.replace("https://", "").replace("http://", "").rstrip("/")
-    return target
+    return _normalize_target(target)
 
 def is_ip(target):
     try:
@@ -158,6 +157,21 @@ def is_ip(target):
         return True
     except ValueError:
         return False
+
+def _normalize_target(raw):
+    """Reduce a user-supplied target to a bare hostname or IP: strip the
+    scheme, path, query, fragment, port, and any credentials. So
+    'https://x.com/en?q=1', 'x.com/en', and 'x.com:443/p' all collapse to
+    'x.com'. Bare IPs (v4/v6) pass through unchanged. Without this, a pasted
+    URL like 'president.ir/en' is treated as a hostname and every DNS/WHOIS/
+    TLS lookup fails on the invalid name."""
+    raw = (raw or "").strip()
+    if not raw:
+        return ""
+    if is_ip(raw):
+        return raw
+    parsed = urllib.parse.urlparse(raw if "://" in raw else "//" + raw)
+    return parsed.hostname or raw
 
 def _in_scope(sub, domain):
     """True if sub is the apex domain or a real subdomain of it — guards
@@ -1758,7 +1772,7 @@ def main(argv=None):
         sys.exit(1)
 
     for raw in targets:
-        target = raw.replace("https://", "").replace("http://", "").rstrip("/")
+        target = _normalize_target(raw)
         # Fresh diagnostics per target so batch reports don't leak into each other.
         DIAGNOSTICS.clear()
         run_recon(target, cfg)
